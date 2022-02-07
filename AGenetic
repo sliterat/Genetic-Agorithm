@@ -1,0 +1,1630 @@
+Kod programu konsolowego
+
+/* 
+Tomasz Pruś
+Inżynieria Oprogramowania
+nr indeksu 15454
+
+w pracy wykorzystano parser autorstwa Marcina Simonidesa
+*/
+
+/*
+Przystosowanie programu do pracy konsolowej. Należy uważnie przeczytać kod źródłowy;
+ usunąć znaki komentarza wyłączające część programu i pozmieniać typ funkcji fscanf na scanf.
+*/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <math.h>
+#include "sexpr.h"
+
+/* Zmienne globalne */
+
+int nr_generacji; /* Numer kolejnego pokolenia */
+
+int warunek; /* Warunki ograniczeń funkcji np. < */
+char war[10];
+
+int l_ograniczen; /* Liczba ograniczeń funkcji */
+char l_ogr[10];
+
+double r; /* Współczynnik kary */
+char rp[10];
+
+int l_populacja; /* Liczebność populacji */
+char l_pop[30];
+
+int m_selekcja; /* Wybór metody selekcji */
+char m_sel[10];
+
+double epsilon; /* Założona dokładność obliczeń - algorytm po osiągnięciu
+                zbieżności mniejszej od epsilon zaktrzyma obliczenia */
+char eps[10];
+
+double g_ograniczenie, d_ograniczenie; /* ograniczenia zmiennych funkcji */
+
+int max_pokolen; /* Maksymalna liczba pokoleń */
+char max_pok[30];
+
+double p_krzyzowania; /* Prawdopodobieństwo krzyżowania */
+char p_krzyz[30];
+
+double p_mutacji; /* Prawdopodobieństwo mutacji */
+char p_mut[30];
+
+/* Funkcje */
+
+double generator(double min, double max);
+int porownuj(const void *wsk_1, const void *wsk_2);
+
+/* Wykorzystywana do sortowania w algorytmach typu qsort */
+
+int porownuj(const void *wsk_1, const void *wsk_2)
+{
+    const double *gen_X =wsk_1;
+    const double *gen_Y =wsk_2;
+    
+    if (*gen_X < *gen_Y)
+    {
+        return -1;
+    }
+    else
+    if (*gen_X > *gen_Y)
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+/* Generator liczb z podanego zakresu */
+
+double generator(double min, double max)
+{
+ double wartosc;
+ wartosc=((double)(rand()%1000)/1000.0)*(max-min)+min;
+ return(wartosc);
+}
+
+int main (int argc, char **argv)
+{
+    
+/* Zmienne parsera odpowiadające za wprowadzoną funkcję i obliczanie jej 
+dopasowania; patrz źróło libsexpr - 1.0c*/
+
+char *tekst;
+char *endpos;
+int err;
+int l_zmiennych;
+eTree_t *wyrazenie;
+eVariables_t zmienne;
+eValue_t wartosc;
+
+/* Zmienne parsera odpowiadające za wprowadzone ograniczenia; 
+patrz źróło libsexpr - 1.0c*/
+
+char *tekst1;
+eTree_t *wyrazenie1;
+eVariables_t zmienne1;
+eValue_t wartosc1;
+
+/* srand((double)time(NULL)); */
+
+/*----------------------------------------------------------------------------*/
+nr_generacji=0;
+/*----------------------------------------------------------------------------*
+/* Zmienne ogólne */
+
+int i, j; 
+int d, q, e;
+double p, x, pmax;
+double ograniczenie;
+
+/* Zmienne dopasowania funkcji */
+
+double suma, max, min, srednia;
+
+/* Zmienne krzyżowania arytmetycznego */
+
+int licznik, k, krzyzak;
+double u;
+
+/* Zmienne selekcji wg. rangi */
+
+int ranga, N, A;
+
+/* Zmienne skalowania liniowego */
+
+double a, b, delta;
+const double fmultiple=2.0; 
+/* Współczynnik zwielokrotnienia dla małych populacji
+od 50 do 100 z przedziału 1.2 - 2.0 (żądana liczba kopii) */
+
+
+FILE *wp=fopen("algen.txt", "w");
+FILE *wp1=fopen("algen1.txt", "w");
+FILE *wp2=fopen("wykres.txt", "w");
+FILE *wp3=fopen("wykres1.txt", "w");
+FILE *wp4=fopen("dane.txt", "r");
+FILE *wp5=fopen("algen2.txt", "w");
+
+q=0;
+e=0;       
+
+/* Korzystając z parsera wprowadzamy badaną funkcję pod postacią łańcucha 
+znakowego; nastepnie jest ona parsowana do postaci wyrażenia matematycznego */
+do
+{       
+        /* tu wczytujemy tekst wyrażenia do "tekst" */
+        /* printf("Wpisz wyrazenie - liczba zmiennych (max 10): \n"); */
+        fscanf(wp4, "%s", tekst);
+
+        zmienne = eInitVar();      /* tworzymy pustą listę zmiennych */
+        wyrazenie = eParse(&zmienne,
+                        tekst,
+                        &endpos,  /* związane z obsługą błędów... */
+                      &err,  /* ...pomijamy w tym przykładzie */
+                        1);    /* czy dodać nowe zmienne? tak */
+       
+       /* if(err != EOK)
+      	{
+		printf(" blad w pozycji %d\n   nr bledu %d\n", endpos - tekst,err);
+		printf("Popraw wyrazenie \n");   
+        }
+        
+        if(eGetNumVars(zmienne) > 10)
+        {
+        printf(" Przekroczyles zakres \n");
+        printf(" Pamietaj o max 10 zmiennych \n");
+        } */
+		
+}  
+  while ((err != EOK) || (eGetNumVars(zmienne) > 10));  
+  
+/*----------------------------------------------------------------------------*/  
+l_zmiennych=eGetNumVars(zmienne);
+/*----------------------------------------------------------------------------*/
+
+/*----------------------------------------------------------------------------*/
+/*--------------------- Wprowadzanie danych wejściowych ----------------------*/
+/*----------------------------------------------------------------------------*/
+
+   do
+   {
+   /* printf("Podaj maksymalna liczbe iteracji :  "); */
+   fscanf(wp4, "%s", max_pok);
+   /*if(!isdigit(*max_pok))
+   printf(" To nie jest liczba, sprobuj ponownie \n"); */
+   
+   }while(!isdigit(*max_pok));
+   
+   max_pokolen=atoi(max_pok);
+
+   do
+   {
+   /*printf("Podaj zlozona dokladnosc obliczen epsilon :  ");*/
+   fscanf(wp4, "%s", eps);
+   
+   /*if(!isdigit(*eps))
+   printf(" To nie jest liczba, sprobuj ponownie \n"); */
+   
+   }while(!isdigit(*eps));
+   
+   epsilon=atof(eps);
+   
+   do
+   {
+   do
+   {
+   /* printf("Podaj rozmiar populacji (max 100): "); */
+   fscanf(wp4, "%s", &l_pop);
+   
+   /* if(!isdigit(*l_pop))
+   printf(" To nie jest liczba, sprobuj ponownie \n"); */
+   
+   }while(!isdigit(*l_pop));
+   
+   l_populacja=atoi(l_pop);
+
+   /* if(l_populacja <= 0 || l_populacja > 100)
+   printf(" Przekroczyles zakres, sprobuj ponownie \n"); */
+
+   }while(l_populacja <= 0 || l_populacja > 100);
+
+   /* printf("\n Krzyżowanie arytmetyczne "); */ 
+
+   do
+   {
+   do
+   {
+   /* printf("\n Podaj prawdopodobienstwo krzyzowania z przedzialu (0,1) : "); */
+   fscanf(wp4, "%s", p_krzyz);
+   
+   /* if(!isdigit(*p_krzyz))
+   printf(" To nie jest liczba, sprobuj ponownie \n"); */
+   
+   }while(!isdigit(*p_krzyz));
+   
+   p_krzyzowania=atof(p_krzyz);
+   
+   /* if(p_krzyzowania < 0 || p_krzyzowania > 1)
+   printf(" Przekroczyles zakres, sprobuj ponownie \n"); */
+   
+   }while(p_krzyzowania < 0 || p_krzyzowania > 1);
+ 
+   do
+   {
+   do
+   {
+   /* printf("\n Podaj prawdopodobienstwo mutacji z przedzialu (0,1) : "); */
+   fscanf(wp4, "%s", p_mut);
+   
+   /* if(!isdigit(*p_mut))
+   printf(" To nie jest liczba, sprobuj ponownie \n"); */
+   
+   }while(!isdigit(*p_mut));
+   
+   p_mutacji=atof(p_mut);
+   
+   /* if(p_mutacji < 0 || p_mutacji > 1)
+   printf(" Przekroczyles zakres, sprobuj ponownie \n"); */
+   
+   }while(p_krzyzowania < 0 || p_krzyzowania > 1);
+   
+   /* printf("\n Podaj metode selekcji ");
+   printf("\n 1. Kolo ruletki ");
+   printf("\n 2. Selekcja rankingowa \n"); */
+    
+   do
+   {
+   /* printf("Podaj maksymalna liczbe iteracji :  "); */
+   fscanf(wp4, "%s",m_sel);
+   
+   /*if(!isdigit(*max_pok))
+   printf(" To nie jest liczba, sprobuj ponownie \n"); */
+      
+   }while(!isdigit(*m_sel));
+   
+   m_selekcja=atoi(m_sel);
+   
+/*----------------------------------------------------------------------------*/
+/*-------------------------------- Koniec ------------------------------------*/
+/*----------------------------------------------------------------------------*/
+   
+
+double *sortowanie;
+sortowanie = malloc(l_populacja*sizeof*sortowanie);
+
+double *n_dopasowanie;
+n_dopasowanie = malloc(l_populacja*sizeof*n_dopasowanie);
+
+/* Struktura populacji */
+   
+     double *gen;
+     gen = malloc(l_zmiennych*sizeof*gen);
+     
+     double *dolne_ograniczenie;
+     dolne_ograniczenie = malloc(l_zmiennych*sizeof*dolne_ograniczenie);
+     
+     double *gorne_ograniczenie;
+     gorne_ograniczenie = malloc(l_zmiennych*sizeof*gorne_ograniczenie);
+     
+     
+
+
+
+     struct genotyp
+{
+       
+      double gen[l_zmiennych];
+      double dolne_ograniczenie[l_zmiennych];
+      double gorne_ograniczenie[l_zmiennych];
+      
+      double dopasowanie; /* wartość dopasowania i-tego osobnika */
+      double ograniczenia; /* wartość ograniczenia i-tego osobnika */
+      double prawd_selek_i_osobnika; /* prawdopodobieństwo selekcji i-tego osobnika */
+
+};
+
+struct genotyp populacja[l_populacja];
+struct genotyp nowa_populacja[l_populacja];
+struct genotyp wyniki_populacja[l_populacja];
+
+double wyniki[l_populacja];
+
+/* Inicjalizacja czyli populacja zerowa */
+
+/* Wprowadzamy z interfejsu graficznego zakres zmiennych pomiędzy którymi zostaną 
+wygenerowane poszczególne geny chromosomu */
+ 
+for(i=0; i<l_zmiennych; i++)
+{
+         
+/* do
+{         
+do
+{
+printf("\n Podaj d_ograniczenie zmiennej %s: ", eGetVarName(zmienne, i)); */
+fscanf(wp4, "%lf", &d_ograniczenie);
+
+/*   if(isalpha(*d_ogr))
+   printf(" To nie jest liczba, sprobuj ponownie \n"); 
+   
+}while(isalpha(*d_ogr));
+
+d_ograniczenie=atof(d_ogr);*/
+/* printf("\n Podaj g_ograniczenie zmiennej %s: ", eGetVarName(zmienne, i)); */
+fscanf(wp4, "%lf", &g_ograniczenie);
+
+   /* if(isalpha(*g_ogr))
+    printf(" To nie jest liczba, sprobuj ponownie \n"); */
+   
+/* }while(isalpha(*g_ogr));
+
+g_ograniczenie=atof(g_ogr); */
+
+     for(j=0; j<l_populacja; j++)
+     {
+     double dopasowanie=0;
+     double prawd_selek_i_osobnika=0;
+     
+     populacja[j].dolne_ograniczenie[i]=d_ograniczenie;
+     populacja[j].gorne_ograniczenie[i]=g_ograniczenie;
+     
+/* Wylosuj dla każdego chromosomu geny  między podanymi ograniczeniami */
+
+populacja[j].gen[i]=generator(populacja[j].dolne_ograniczenie[i],populacja[j].gorne_ograniczenie[i]);
+/* printf(" %f populacja\n",populacja[j].gen[i]); */
+     }
+}
+
+/*----------------------------------------------------------------------------*/
+/*------------------------- Ograniczenia funkcji -----------------------------*/
+/*----------------------------------------------------------------------------*/
+
+/* Każde ograniczenie funkcji składa się z trzech części np: x+1 < 3
+1. Wprowadzamy ograniczenie - x+1
+2. Wprowadzamy warunek - znakowi mniejszości odpowiada liczba 1
+3. Wprowadzamy wartość ograniczenia - 3
+
+Procedura zostanie wykonana tyle razy ile podaliśmy warunków ograniczeń;
+odpowiada za to zmienna l_ograniczen. */
+
+/* Obliczam dopasowanie chromosomów */
+
+for(j=0; j<l_populacja; j++)
+{
+    for(i=0; i<l_zmiennych; i++)
+    {
+    eSetVar(zmienne, i,populacja[j].gen[i]);
+    populacja[j].dopasowanie=(eEval(&zmienne,wyrazenie));
+    }
+    /* printf(" %f dopasowanie\n", populacja[j].dopasowanie); */
+}
+
+   do
+   {
+   /* printf("\n Podaj liczbe ograniczen:  "); */
+   fscanf(wp4, "%s", l_ogr);
+   
+   /*if(!isdigit(*l_ogr))
+   printf(" To nie jest liczba, sprobuj ponownie \n"); */
+   
+   }while(!isdigit(*l_ogr));
+   
+   l_ograniczen=atoi(l_ogr);
+   
+   do
+   {
+   /* printf("\n Wprowadz wspolczynnik kary:  "); */
+   fscanf(wp4, "%s", rp);
+   
+   /* if(!isdigit(*rp))
+   printf(" To nie jest liczba, sprobuj ponownie \n"); */
+   
+   }while(!isdigit(*rp));
+   
+   r=atof(rp);
+   
+licznik=0;
+
+for(i=0; i<l_ograniczen; i++)
+{
+
+do
+{
+        /* tu wczytujemy tekst wyrażenia do "tekst" 
+        printf("\n Wpisz ograniczenia (max 10): \n\n"); */
+        fscanf(wp4, "\n %s", tekst1);
+
+        zmienne1 = eInitVar();     
+        wyrazenie1 = eParse(&zmienne1,
+                        tekst1,
+                        &endpos,  /* związane z obsługą błędów... */
+                      &err,  /* ...pomijamy w tym przykładzie */
+                        1);    /* czy dodać nowe zmienne? tak */
+       
+     	/* if(err != EOK)
+      	{
+		printf(" blad w pozycji %d\n   nr bledu %d\n", endpos - tekst1,err);
+		printf("Popraw wyrazenie \n");   
+        } */
+        		
+}  
+while (err != EOK);  
+
+for(j=0; j<l_populacja; j++)
+{
+    for(i=0; i<eGetNumVars(zmienne1); i++)
+    {
+    eSetVar(zmienne1, i,populacja[j].gen[i]);
+    populacja[j].ograniczenia=(eEval(&zmienne1,wyrazenie1));   
+    }
+    /* printf(" %f ograniczenia\n", populacja[j].ograniczenia); */
+}
+
+   do
+   {
+   /* printf("\n Wybierz warunek: \n");
+
+   printf("\n 1. ograniczenia < wartosc ograniczenia ");
+   printf("\n 2. ograniczenia > wartosc ograniczenia ");
+   printf("\n 3. ograniczenia <= wartosc ograniczenia ");
+   printf("\n 4. ograniczenia >= wartosc ograniczenia ");
+   printf("\n 5. ograniczenia = wartosc ograniczenia \n"); */
+
+   fscanf(wp4, "%s", war);
+   
+   /* if(!isdigit(*war))
+   printf(" To nie jest liczba, sprobuj ponownie \n"); */
+   
+   }while(!isdigit(*war));
+   
+   warunek=atoi(war);
+   
+      /* printf("\n Wprowadz wartosc ograniczenie:  "); */
+   fscanf(wp4, "%lf", &ograniczenie);
+
+if(warunek==1)
+{
+for(j=0; j<l_populacja; j++)
+{        
+     if(populacja[j].ograniczenia < ograniczenie)
+     {
+     /* printf(" %f poc1if\n", populacja[j].dopasowanie); */
+     }
+     else
+     {
+     populacja[j].dopasowanie=(populacja[j].dopasowanie+r*(populacja[j].ograniczenia-ograniczenie)*(populacja[j].ograniczenia-ograniczenie));
+     /* printf(" %f poc1else\n", populacja[j].dopasowanie); */
+     }
+}
+}
+
+if(warunek==2)
+{
+for(j=0; j<l_populacja; j++)
+{    
+     if(populacja[j].ograniczenia > ograniczenie)
+     {
+     /* printf(" %f poc2if\n", populacja[j].dopasowanie); */
+     }
+     else
+     {
+     populacja[j].dopasowanie=(populacja[j].dopasowanie+r*(populacja[j].ograniczenia-ograniczenie)*(populacja[j].ograniczenia-ograniczenie));
+     /* printf(" %f poc2else\n", populacja[j].dopasowanie); */
+     }
+}
+}
+
+if(warunek==3)
+{
+for(j=0; j<l_populacja; j++)
+{    
+     if(populacja[j].ograniczenia <= ograniczenie)
+     {
+     /* printf(" %f poc3if\n", populacja[j].dopasowanie); */
+     }
+     else
+     {
+     populacja[j].dopasowanie=(populacja[j].dopasowanie+r*(populacja[j].ograniczenia-ograniczenie)*(populacja[j].ograniczenia-ograniczenie));
+     /* printf(" %f poc3else\n", populacja[j].dopasowanie); */
+     }
+}   
+}
+
+if(warunek==4)
+{
+for(j=0; j<l_populacja; j++)
+{    
+     if(populacja[j].ograniczenia >= ograniczenie)
+     {
+     /* printf(" %f poc4if\n", populacja[j].dopasowanie); */
+     }
+     else
+     {
+     populacja[j].dopasowanie=(populacja[j].dopasowanie+r*(populacja[j].ograniczenia-ograniczenie)*(populacja[j].ograniczenia-ograniczenie));
+     /* printf(" %f poc4else\n", populacja[j].dopasowanie); */
+     }
+}
+}
+if(warunek==5)
+{
+for(j=0; j<l_populacja; j++)
+{    
+     if(populacja[j].ograniczenia == ograniczenie)
+     {
+     /* printf(" %f poc5if\n", populacja[j].dopasowanie); */
+     }
+     else
+     {
+     populacja[j].dopasowanie=(populacja[j].dopasowanie+r*(populacja[j].ograniczenia-ograniczenie)*(populacja[j].ograniczenia-ograniczenie));
+     /* printf(" %f poc5else\n", populacja[j].dopasowanie); */
+     }
+}
+}
+
+licznik++;
+
+/* Przepisanie ograniczeń do tablicy dopasowań 
+
+for(j=0; j<l_populacja; j++)
+printf(" %f \n", populacja[j].dopasowanie);
+*/
+
+if(licznik==l_ograniczen)
+break;
+}
+
+/*----------------------------------------------------------------------------*/
+/*-------------------------------- Koniec ------------------------------------*/
+/*----------------------------------------------------------------------------*/
+              
+/* Wyznaczam element min i max dopasowania */
+
+min=populacja[0].dopasowanie;
+for(j=1; j<l_populacja; j++)
+{
+if(populacja[j].dopasowanie<min)
+min=populacja[j].dopasowanie;
+}
+
+max=populacja[0].dopasowanie;
+for(j=1; j<l_populacja; j++)
+{
+if(populacja[j].dopasowanie>max)
+max=populacja[j].dopasowanie;
+}
+
+/* Przekształcenie funkcji dla zadania minimalizacji */
+
+for(j=0; j<l_populacja; j++)
+{
+populacja[j].dopasowanie=(exp((populacja[j].dopasowanie-min)/(max-min)));
+}
+
+/* Obliczam dopasowanie całkowite populacji */
+
+suma=0;
+  
+for(j=0; j<l_populacja;j++)
+{
+suma+=populacja[j].dopasowanie;
+}
+
+/* Zmienne odpowiadające za stworzenie koła ruletki */
+
+double ruletka[l_populacja];
+double obwod;
+obwod=0;
+
+/* Rozpoczynamy główną pętlę programu */
+
+while(nr_generacji < max_pokolen)
+{
+
+nr_generacji++;
+
+/*----------------------------------------------------------------------------*/
+/*---------------------- Selekcja metodą koła ruletki ------------------------*/
+/*----------------------------------------------------------------------------*/
+
+if(m_selekcja==1)
+{
+
+/* Wyznaczam element min i max dopasowania */
+
+min=populacja[0].dopasowanie;
+for(j=1; j<l_populacja; j++)
+{
+if(populacja[j].dopasowanie<min)
+min=populacja[j].dopasowanie;
+}
+
+max=populacja[0].dopasowanie;
+for(j=1; j<l_populacja; j++)
+{
+if(populacja[j].dopasowanie>max)
+max=populacja[j].dopasowanie;
+}
+
+/* if(min==max)
+{
+printf(" Koniec, wszyscy sa identyczni !!!\n");
+break;
+}
+*/
+
+/* Wyznaczanie prawdopodobieństwa selekcji i-tego osobnika */
+
+/* Korzystamy ze wzoru odwracającego koło ruletki dla minimalizacji funkcji */
+
+for(j=0;j<l_populacja;j++)
+{
+populacja[j].prawd_selek_i_osobnika=(min-populacja[j].dopasowanie+1)/(suma+1);
+
+/* Następuje skalowanie wyników; jeżeli wynik jest ujemny obliczamy wartość 
+bezwzględną dla danego osobnika. Ma to na celu zapobieganie usuwaniu genów poza 
+nawias populacji przed jego oceną */
+
+if(populacja[j].prawd_selek_i_osobnika<0)
+populacja[j].prawd_selek_i_osobnika=fabs(populacja[j].prawd_selek_i_osobnika);
+}
+
+/* Wyznaczanie koła ruletki */
+
+for(j=0; j<l_populacja; ++j)
+{
+ruletka[j]=populacja[j].prawd_selek_i_osobnika + obwod;
+obwod += populacja[j].prawd_selek_i_osobnika;
+/* printf(" %f ruletka[j]\n", ruletka[j]); */
+}
+
+/* Wyznaczam element max górnego przedziału ruletki */
+
+pmax= ruletka[0];
+for(j=1; j<l_populacja; j++)
+{
+if(ruletka[j]>pmax)
+pmax= ruletka[j];
+}
+/* printf(" %f pmax  ruletka[j]\n", pmax); */
+
+/* Wybór osobników metodą ruletki */
+
+for(j=0;j<l_populacja;j++) 
+{
+p=generator(0,pmax);
+/* printf(" %f p\n", p); */
+
+/* Z powodu niedogodności związanych z obliczeniem prawdopodobieństwa wyboru
+osobników należy wyskalować koło ruletki od zera do największej wartości 
+koła ruletki pmax */
+
+for(i=0; i<l_zmiennych; i++)
+{
+licznik=0;
+k=0;
+
+while(p >= ruletka[k++])
+{
+++licznik;
+}
+
+if(licznik >=l_populacja)
+licznik =l_populacja-1;
+
+nowa_populacja[j].gen[i]=populacja[licznik].gen[i];
+/* printf(" %f pnowa_populacja[j].gen[i]\n", nowa_populacja[j].gen[i]); */
+}
+}
+
+/* Kopiowanie populacji */
+
+for(i=0; i<l_zmiennych; i++)
+for(j=0; j<l_populacja; j++);
+{
+populacja[j].gen[i]=nowa_populacja[j].gen[i];
+}
+
+/* Obliczam dopasowanie chromosomów dla nowej populacji*/
+
+for(j=0; j<l_populacja; j++)
+{
+    for(i=0; i<l_zmiennych; i++)
+    {
+    eSetVar(zmienne, i,populacja[j].gen[i]);
+    populacja[j].dopasowanie=(eEval(&zmienne,wyrazenie));
+    }
+}
+
+/* Obliczam dopasowanie całkowite dla nowej populacji */
+
+suma=0;
+  
+for(j=0; j<l_populacja;j++)
+{
+suma+=populacja[j].dopasowanie;
+}
+
+/* Obliczam dopasowanie średnie dla nowej populacji */
+
+srednia=suma/l_populacja;
+
+/* Wyznaczam element min i max dopasowania do obliczenia współczynnikow skalowania*/
+
+max=populacja[0].dopasowanie;
+for(j=1; j<l_populacja; j++)
+{
+if(populacja[j].dopasowanie>max)
+max=populacja[j].dopasowanie;
+}
+
+min=populacja[0].dopasowanie;
+for(j=1; j<l_populacja; j++)
+{
+if(populacja[j].dopasowanie<min)
+min=populacja[j].dopasowanie;
+}
+
+/* if(min==max)
+{
+printf(" Koniec, wszyscy sa identyczni !!!\n");
+break;
+} */
+
+/* Wyznaczam współczynniki skalowania liniowego a i b */
+
+/* Metoda wyboru współczynników skalowania liniowego jest automatyczna; są one 
+wyliczane wg. procedury stworzonej przez Davida E.Goldberga. Istnieje możliwość 
+przeprojektowania aplikacji w ten sposób, żeby współczynniki były wprowadzane 
+ręcznie. */
+
+if(min>(fmultiple*srednia-max)/(fmultiple-1.0))
+{
+delta=max-srednia;
+a=(fmultiple-1.0)*srednia/delta;
+b=srednia*(max-fmultiple*srednia)/delta;
+}
+else
+{
+    delta=srednia-min;
+    a=srednia/delta;
+    b=-min*srednia/delta;
+}
+
+/* Zastępuje dopasowanie przeskalowanymi wartościami */
+
+for(j=0; j<l_populacja; j++)
+{
+    for(i=0; i<l_zmiennych; i++)
+    {
+    eSetVar(zmienne, i,populacja[j].gen[i]);
+    populacja[j].dopasowanie=(eEval(&zmienne,wyrazenie));
+    populacja[j].dopasowanie=(a*populacja[j].dopasowanie+b);
+    }
+}
+}
+
+/*----------------------------------------------------------------------------*/
+/*-------------------------------- Koniec ------------------------------------*/
+/*----------------------------------------------------------------------------*/
+
+/*----------------------------------------------------------------------------*/
+/*-------------------------- Selekcja Rankingowa -----------------------------*/
+/*----------------------------------------------------------------------------*/
+
+if(m_selekcja==2)
+{
+
+/* Metoda selekcji wg. nadawanych rang */
+
+/* Sortowanie dopasowań rosnąco ( dla minimalizacji) */
+
+for(j=0; j<l_populacja; j++)
+sortowanie[j]=populacja[j].dopasowanie;
+
+qsort(sortowanie, l_populacja, sizeof(double), porownuj);
+
+/* Nadawanie rangi dla osobników populacji */
+for(j=0; j<l_populacja; j++)
+populacja[j].prawd_selek_i_osobnika=2.0*j/(double)(N*(N+1));
+
+/* Wyznaczanie koła ruletki */
+
+for(j=0; j<l_populacja; ++j)
+{
+ruletka[j]=populacja[j].prawd_selek_i_osobnika + obwod;
+obwod += populacja[j].prawd_selek_i_osobnika;
+/* printf(" %f ruletka[j]\n", ruletka[j]); */
+}
+
+/* Wyznaczam element max górnego przedziału ruletki */
+
+pmax= ruletka[0];
+for(j=1; j<l_populacja; j++)
+{
+if(ruletka[j]>pmax)
+pmax= ruletka[j];
+}
+/* printf(" %f pmax  ruletka[j]\n", pmax); */
+
+/* Wybór osobników metodą ruletki */
+
+for(j=0;j<l_populacja;j++) 
+{
+p=generator(0,pmax);
+/* printf(" %f p\n", p); */
+
+for(i=0; i<l_zmiennych; i++)
+{
+licznik=0;
+k=0;
+
+while(p >= ruletka[k++])
+{
+++licznik;
+}
+
+if(licznik >=l_populacja)
+licznik =l_populacja-1;
+
+nowa_populacja[j].gen[i]=populacja[licznik].gen[i];
+/* printf(" %f pnowa_populacja[j].gen[i]\n", nowa_populacja[j].gen[i]); */
+}
+}
+
+/* Kopiowanie populacji */
+
+for(i=0; i<l_zmiennych; i++)
+for(j=0; j<l_populacja; j++)
+{
+populacja[j].gen[i]=nowa_populacja[j].gen[i];
+}
+
+}
+/*----------------------------------------------------------------------------*/
+/*----------------------- Koniec selekcji rankingowej ------------------------*/
+/*----------------------------------------------------------------------------*/
+
+/*----------------------------------------------------------------------------*/
+/*----------------------- Krzyżowanie arytmetyczne ---------------------------*/
+/*----------------------------------------------------------------------------*/
+
+/* Wybór osobników do krzyzowania */
+
+/* Warianty krzyżowania:
+
+1. dla jednej zmiennej - wybieramy z całej populacji osobniki, które spełniają
+warunek krzyżowania. Jeżeli w puli znajdą się przynajmniej dwa następuje 
+procedura krzyżowania a następnie program szuka dwóch kolejnych osobników, 
+których będzie mógł poddać procedurze krzyżowania.
+
+2. dla dwóch zmiennych - wybór osobników jw.; osobnik składa się z genu 
+1 zmiennej i genu 2 zmiennej; geny zostają wymienione wg. wzoru krzyżowania 
+arytmetycznego.
+
+3. dla trzech lub większej ilości zmiennych - krzyżowanie w początkowej fazie 
+następuje między genami 1 i 2 osobnika. Następnie krzyżowane są geny 2 i 3.
+
+Dla punktu 2 i 3 wymiana następuje między genami i między osobnikami.
+*/
+
+licznik=0;
+int pk1, pk2;
+
+   
+for(j=0; j<l_populacja; j++)
+{
+x=rand()%1000/1000.0;
+
+    if(x<=p_krzyzowania)
+    {
+    ++licznik; 
+    
+    if(licznik%2==0)
+    {
+                    
+if(l_zmiennych==1)
+{
+ pk1=0;
+ pk2=0;
+ 
+ u=rand()%1000/1000.0;  
+populacja[licznik-1].gen[i]=u*populacja[licznik-1].gen[pk1]+(1-u)*populacja[licznik].gen[pk2];
+/* printf("\n 1po licznik-1: %f\n",populacja[licznik-1].gen[i]); */ 
+
+populacja[licznik].gen[i]=(1-u)*populacja[licznik-1].gen[pk1]+u*populacja[licznik].gen[pk2];
+/* printf("\n 1po licznik: %f\n",populacja[licznik].gen[i]); */
+}
+
+    pk1=0;
+    pk2=1;
+
+if(l_zmiennych==2)
+{
+                  
+/*for(i=0; i<l_zmiennych; i++)
+{*/
+u=rand()%1000/1000.0;  
+populacja[licznik-1].gen[i]=u*populacja[licznik-1].gen[pk1]+(1-u)*populacja[licznik].gen[pk2];
+/* printf("\n 2po licznik-1: %f\n",populacja[licznik-1].gen[i]); */
+
+populacja[licznik].gen[i]=(1-u)*populacja[licznik-1].gen[pk1]+u*populacja[licznik].gen[pk2];
+/* printf("\n 2po licznik: %f\n",populacja[licznik].gen[i]); */
+/*}*/
+}
+else
+{
+    u=rand()%1000/1000.0;  
+    populacja[licznik-1].gen[i]=u*populacja[licznik-1].gen[pk1]+(1-u)*populacja[licznik].gen[pk2];
+    /* printf("\n 3 i więcejpo licznik-1: %f\n",populacja[licznik-1].gen[i]); */
+
+    populacja[licznik].gen[i]=(1-u)*populacja[licznik-1].gen[pk1]+u*populacja[licznik].gen[pk2];
+    /* printf("\n 3 i wiecej po licznik: %f\n",populacja[licznik].gen[i]); */
+    
+    if(pk1>=l_zmiennych)
+    {
+     pk1=0;
+    }
+    
+    if(pk2 >= l_zmiennych)
+    {
+     pk2=0;
+    }
+    
+    pk1=pk1+1;
+    pk2=pk2+1;
+}
+}
+else
+{
+   
+for(i=0; i<l_zmiennych; i++)
+{
+  /*populacja[j].gen[i]=populacja[j].gen[i]; */ 
+  /*printf("po : %f\n\n",populacja[j].gen[i]); */
+}
+  
+}
+}
+}
+/*----------------------------------------------------------------------------*/
+/*------------------ Koniec krzyżowania arytmetycznego -----------------------*/
+/*----------------------------------------------------------------------------*/
+
+/*----------------------------------------------------------------------------*/
+/*-------------------------------- Mutacja -----------------------------------*/
+/*----------------------------------------------------------------------------*/
+
+/* Mutacja jednopunktowa - następuje wymiana losowa genu, który został poddany 
+mutacji. Nowy gen na to miejsce losowany jest w identyczny sposób jak geny 
+populacji początkowej */
+
+for(i=0; i<l_zmiennych; i++)
+{ 
+     for(j=0; j<l_populacja; j++)
+     {
+     x=rand()%1000/1000.0;
+     
+     if(x<p_mutacji)
+     {
+     populacja[j].dolne_ograniczenie[i]=d_ograniczenie;
+     populacja[j].gorne_ograniczenie[i]=g_ograniczenie;
+     
+     nowa_populacja[j].gen[i]=generator(populacja[j].dolne_ograniczenie[i],populacja[j].gorne_ograniczenie[i]);
+     }
+     else
+     {
+     nowa_populacja[j].gen[i]= populacja[j].gen[i]; 
+     }
+       
+     }
+}
+ 
+/* Kopiowanie populacji */
+
+for(i=0; i<l_zmiennych; i++)
+for(j=0; j<l_populacja ; j++)
+{
+populacja[j].gen[i]=nowa_populacja[j].gen[i];
+} 
+
+/*----------------------------------------------------------------------------*/
+/*----------------------------- Koniec mutacji -------------------------------*/
+/*----------------------------------------------------------------------------*/
+
+/* Obliczam dopasowanie chromosomów */
+
+
+for(j=0; j<l_populacja; j++)
+{
+         for(i=0; i<l_zmiennych; i++)
+         {
+         eSetVar(zmienne, i,populacja[j].gen[i]);
+         populacja[j].dopasowanie=(eEval(&zmienne,wyrazenie));
+         }
+}
+    
+/*----------------------------------------------------------------------------*/
+/*------------------------------- Raporty ------------------------------------*/
+/*----------------------------------------------------------------------------*/
+
+/* Wyznaczam element min i max dopasowania do obliczenia współczynnikow skalowania*/
+
+ licznik=0;
+
+ min=populacja[0].dopasowanie;
+ for(j=1; j<l_populacja; j++)
+ {
+ 
+ if(populacja[j].dopasowanie<min)
+ {
+ min=populacja[j].dopasowanie;
+ licznik=j;
+ }
+
+ }
+
+/* Kopiowanie wyników najlepszych chromosomów i ich dopasowań do tablic
+pomocniczych */
+
+for(i=0; i<l_zmiennych; i++)
+wyniki_populacja[e].gen[i]=populacja[licznik].gen[i];
+ 
+wyniki[e]=min;
+e++;
+
+max=populacja[0].dopasowanie;
+for(j=1; j<l_populacja; j++)
+{
+if(populacja[j].dopasowanie>max)
+max=populacja[j].dopasowanie;
+}
+
+/* Warunek stopu - zapobiega wykonywaniu niedozwolonych działań matematycznych 
+podczas oceny populacji; informuje nas, że w populacji wszystkie osobniki są
+identyczne */
+
+if(min==max)
+{
+printf(" Koniec, wszyscy sa identyczni !!!\n");
+break;
+}
+ 
+ /* Pliki do wyświetlania w tabelach */ 
+ /* printf(" \n %d   %lf", nr_generacji, min); */
+ 
+ fprintf(wp1, " \n %3.d          %.6f", nr_generacji, min);
+ 
+ for(i=0; i<l_zmiennych; i++)
+ {
+  /* Pliki do wyświetlania w tabelach */ 
+  /* printf("  %lf ", populacja[licznik].gen[i]); */
+  
+  fprintf(wp1, "          %.6f           ", populacja[licznik].gen[i]);
+  }
+
+/* Obliczam dopasowanie całkowite dla nowej populacji */
+
+suma=0;
+  
+for(j=0; j<l_populacja;j++)
+{
+suma+=populacja[j].dopasowanie;
+}
+
+/* Obliczam dopasowanie średnie dla nowej populacji */
+
+srednia=suma/l_populacja;
+
+/* Pliki do wyświetlania w tabelach */ 
+/* printf("  %d   %.6lf   %.6lf    %.6lf  \n",nr_generacji , min, max, srednia); */
+
+fprintf(wp, "      %3.d         %.6f        %.6f       %.6f   \n",nr_generacji , min, max, srednia);
+
+/*----------------------------------------------------------------------------*/
+/*-------------------------------- Koniec ------------------------------------*/
+/*----------------------------------------------------------------------------*/
+
+/*----------------------------------------------------------------------------*/
+/*---------------------------- Kryterium stopu -------------------------------*/
+/*----------------------------------------------------------------------------*/
+
+/* Warunek sprawdzany jest co 20 iteracji. Jeżeli w przeciągu tego okresu 
+wartość różnicy między największym dopasowaniem a dopasowaniem minimalnym nie 
+przekroczy wartości epsilon algorytm zostanie zatrzymany. */
+
+double tab[20];
+
+tab[q]=min; 
+
+if(nr_generacji%20 == 0)
+{
+
+double max_tab;
+double min_tab;
+
+max_tab=tab[0];
+for(j=1; j<20; j++)
+if(tab[j]>max_tab)
+max_tab=tab[j];
+
+min_tab=tab[0];
+for(j=1; j<20; j++)
+if(tab[j]<min_tab)
+min_tab=tab[j];
+
+if(fabs(max_tab-min_tab)<epsilon)
+break;
+      else
+      {
+      for(i=0; i<20; i++)
+      tab[i]=0;
+     
+      q=-1;
+      }
+}
+q++;
+
+ /* if(fabs(populacja[licznik].dopasowanie) < epsilon)
+ break; */
+
+/*----------------------------------------------------------------------------*/
+/*-------------------------------- Koniec ------------------------------------*/
+/*----------------------------------------------------------------------------*/
+
+/* Przekształcenie funkcji dla zadania minimalizacji */
+
+if(min==max)
+{
+printf(" Koniec, wszyscy sa identyczni !!!\n");
+break;
+}
+
+for(j=0; j<l_populacja; j++)
+populacja[j].dopasowanie=exp((populacja[j].dopasowanie-min)/(max-min));
+
+licznik=0;
+
+for(i=0; i<l_ograniczen; i++)
+{
+         
+if(warunek==1)
+{
+for(j=0; j<l_populacja; j++)
+{        
+     if(populacja[j].ograniczenia < ograniczenie)
+     {
+     /* printf(" kon1%f if\n", populacja[j].dopasowanie); */
+     }
+     else
+     {
+     populacja[j].dopasowanie=(populacja[j].dopasowanie+r*(populacja[j].ograniczenia-ograniczenie)*(populacja[j].ograniczenia-ograniczenie));
+     /* printf(" %f kon1else\n", populacja[j].dopasowanie); */
+     }
+}
+}
+
+if(warunek==2)
+{
+for(j=0; j<l_populacja; j++)
+{    
+     if(populacja[j].ograniczenia > ograniczenie)
+     {
+     /* printf(" %fkon2 if\n", populacja[j].dopasowanie); */
+     }
+     else
+     {
+     populacja[j].dopasowanie=(populacja[j].dopasowanie+r*(populacja[j].ograniczenia-ograniczenie)*(populacja[j].ograniczenia-ograniczenie));
+     /* printf(" %f kon2else\n", populacja[j].dopasowanie); */
+     }
+}
+}
+
+if(warunek==3)
+{
+for(j=0; j<l_populacja; j++)
+{    
+     if(populacja[j].ograniczenia <= ograniczenie)
+     {
+     /* printf(" %f kon3if\n", populacja[j].dopasowanie); */
+     }
+     else
+     {
+     populacja[j].dopasowanie=(populacja[j].dopasowanie+r*(populacja[j].ograniczenia-ograniczenie)*(populacja[j].ograniczenia-ograniczenie));
+     /* printf(" %f kon3else\n", populacja[j].dopasowanie); */
+     }
+}   
+}
+
+if(warunek==4)
+{
+for(j=0; j<l_populacja; j++)
+{    
+     if(populacja[j].ograniczenia >= ograniczenie)
+     {
+     /* printf(" %f kon4if\n", populacja[j].dopasowanie); */
+     }
+     else
+     {
+     populacja[j].dopasowanie=(populacja[j].dopasowanie+r*(populacja[j].ograniczenia-ograniczenie)*(populacja[j].ograniczenia-ograniczenie));
+     /* printf(" %f kon4else\n", populacja[j].dopasowanie); */
+     }
+}
+}
+
+if(warunek==5)
+{
+for(j=0; j<l_populacja; j++)
+{    
+     if(populacja[j].ograniczenia == ograniczenie)
+     {
+     /* printf(" %f kon5if\n", populacja[j].dopasowanie); */
+     }
+     else
+     {
+     populacja[j].dopasowanie=populacja[j].dopasowanie+r*(populacja[j].ograniczenia-ograniczenie)*(populacja[j].ograniczenia-ograniczenie);
+     /* printf(" %f kon5else\n", populacja[j].dopasowanie); */
+     }
+}
+}
+
+licznik++;
+
+
+/* Przepisanie ograniczeń do tablicy dopasowań 
+
+for(j=0; j<l_populacja; j++)
+printf(" %f \n", populacja[j].dopasowanie);
+*/
+
+if(licznik==l_ograniczen)
+break;
+}
+
+}
+
+/* Skrypt do gnuplota dopasowanie funkcji */
+
+fprintf(wp2, " set title ' dopasowanie funkcji  %s '; \n", tekst);
+fprintf(wp2, " \n set xlabel ' nr generacji '; ");
+fprintf(wp2, " \n set ylabel ' dopasowanie ' ;");
+fprintf(wp2, " \n set grid ;");
+fprintf(wp2, " \n plot 'algen.txt' title 'min' with linespoints,  'algen.txt' using 1:3 title 'max' with linespoints, 'algen.txt' using 1:4 title 'srednia' with linespoints ;");
+
+/* Skrypt do gnuplota wykresy najlepszych genów */
+
+fprintf(wp3, " set title ' minimum funkcji %s w kolejnych iteracjach'; \n", tekst);
+fprintf(wp3, " \n set xlabel ' nr generacji '; ");
+fprintf(wp3, " \n set grid ;");
+fprintf(wp3, " \n plot 'algen1.txt' with linespoints title 'dopasowanie'");
+
+d=0;
+for(i=0; i<l_zmiennych; i++)
+{
+d=i+3;
+fprintf(wp3, ", 'algen1.txt' using 1:%d with linespoints title 'zmienna %s'", d, eGetVarName(zmienne, i));
+}
+
+ licznik=0;
+
+ min=wyniki[0];
+ for(j=1; j<e; j++)
+ {
+ 
+ if(wyniki[j]<min)
+ {
+ min=wyniki[j];
+ licznik=j;
+ }
+
+ }
+ fprintf(wp5, " \n nr_generacji %3.d ", licznik+1); 
+ fprintf(wp5, "    %.6f     ", min);
+
+ for(i=0; i<l_zmiennych; i++)
+ fprintf(wp5, "  %.6f ", wyniki_populacja[licznik].gen[i]); 
+
+fclose(wp1);
+fclose(wp);
+fclose(wp2);
+fclose(wp3);
+fclose(wp4);
+fclose(wp5);
+
+/* Zwolnienie zaalokowanej pamięci */
+
+free(sortowanie);
+free(n_dopasowanie);
+free(gen);
+free(dolne_ograniczenie);
+free(gorne_ograniczenie);
+
+system ("PAUSE");
+return 0;
+
+};
+
+Kod interfejsu graficznego
+
+Imports System
+Imports System.IO
+
+Public Class Form1
+
+    Private Sub Button1_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles Button1.Click
+
+        Const FILE_NAME As String = "\Algorytmy Genetyczne\dane.txt"
+        Using sw As StreamWriter = File.CreateText(FILE_NAME)
+            sw.WriteLine(TextBox1.Text)
+            sw.WriteLine(TextBox2.Text)
+            sw.WriteLine(TextBox3.Text)
+            sw.WriteLine(TextBox4.Text)
+            sw.WriteLine(TextBox5.Text)
+            sw.WriteLine(TextBox6.Text)
+            sw.WriteLine(CheckedListBox1.Text)
+            sw.WriteLine(TextBox7.Text)
+            sw.WriteLine(TextBox12.Text)
+            sw.WriteLine(TextBox13.Text)
+            sw.WriteLine(TextBox14.Text)
+            sw.WriteLine(TextBox15.Text)
+            sw.WriteLine(TextBox16.Text)
+            sw.WriteLine(TextBox17.Text)
+            sw.WriteLine(TextBox18.Text)
+            sw.WriteLine(TextBox19.Text)
+            sw.WriteLine(TextBox20.Text)
+            sw.WriteLine(TextBox11.Text)
+            sw.WriteLine(TextBox8.Text)
+            sw.WriteLine(TextBox9.Text)
+            If ComboBox1.SelectedIndex > -1 Then
+                sw.WriteLine(ComboBox1.SelectedIndex + 1)
+            End If
+            sw.WriteLine(TextBox10.Text)
+            sw.WriteLine(TextBox21.Text)
+            If ComboBox2.SelectedIndex > -1 Then
+                sw.WriteLine(ComboBox2.SelectedIndex + 1)
+            End If
+            sw.WriteLine(TextBox30.Text)
+            sw.WriteLine(TextBox22.Text)
+            If ComboBox3.SelectedIndex > -1 Then
+                sw.WriteLine(ComboBox3.SelectedIndex + 1)
+            End If
+            sw.WriteLine(TextBox31.Text)
+            sw.WriteLine(TextBox23.Text)
+            If ComboBox4.SelectedIndex > -1 Then
+                sw.WriteLine(ComboBox4.SelectedIndex + 1)
+            End If
+            sw.WriteLine(TextBox32.Text)
+            sw.WriteLine(TextBox24.Text)
+            If ComboBox5.SelectedIndex > -1 Then
+                sw.WriteLine(ComboBox5.SelectedIndex + 1)
+            End If
+            sw.WriteLine(TextBox33.Text)
+            sw.WriteLine(TextBox25.Text)
+            If ComboBox6.SelectedIndex > -1 Then
+                sw.WriteLine(ComboBox6.SelectedIndex + 1)
+            End If
+            sw.WriteLine(TextBox34.Text)
+            sw.WriteLine(TextBox26.Text)
+            If ComboBox7.SelectedIndex > -1 Then
+                sw.WriteLine(ComboBox7.SelectedIndex + 1)
+            End If
+            sw.WriteLine(TextBox35.Text)
+            sw.WriteLine(TextBox27.Text)
+            If ComboBox8.SelectedIndex > -1 Then
+                sw.WriteLine(ComboBox8.SelectedIndex + 1)
+            End If
+            sw.WriteLine(TextBox36.Text)
+            sw.WriteLine(TextBox28.Text)
+            If ComboBox9.SelectedIndex > -1 Then
+                sw.WriteLine(ComboBox9.SelectedIndex + 1)
+            End If
+            sw.WriteLine(TextBox37.Text)
+            sw.WriteLine(TextBox29.Text)
+            If ComboBox10.SelectedIndex > -1 Then
+                sw.WriteLine(ComboBox10.SelectedIndex + 1)
+            End If
+            sw.WriteLine(TextBox38.Text)
+            sw.Close()
+        End Using
+
+        Const F_NAME As String = "\Algorytmy Genetyczne\wynik.txt"
+        Using w As StreamWriter = File.CreateText(F_NAME)
+            w.WriteLine("Badana funkcja")
+            w.WriteLine(TextBox1.Text)
+            w.WriteLine("Liczba iteracji")
+            w.WriteLine(TextBox2.Text)
+            w.WriteLine("Założona dokładność obliczeń epsilon")
+            w.WriteLine(TextBox3.Text)
+            w.WriteLine("Liczba populacji")
+            w.WriteLine(TextBox4.Text)
+            w.WriteLine("Prawdopodobieństwo krzyżowania")
+            w.WriteLine(TextBox5.Text)
+            w.WriteLine("Prawdopodobieństwo mutacji")
+            w.WriteLine(TextBox6.Text)
+            w.WriteLine("Metoda selekcji")
+            w.WriteLine("1. Koło ruletki")
+            w.WriteLine("2. Selekcja rankingowa")
+            w.WriteLine(CheckedListBox1.Text)
+            w.WriteLine("Ograniczenia zmiennych")
+            w.WriteLine(TextBox7.Text)
+            w.WriteLine(TextBox12.Text)
+            w.WriteLine(TextBox13.Text)
+            w.WriteLine(TextBox14.Text)
+            w.WriteLine(TextBox15.Text)
+            w.WriteLine(TextBox16.Text)
+            w.WriteLine(TextBox17.Text)
+            w.WriteLine(TextBox18.Text)
+            w.WriteLine(TextBox19.Text)
+            w.WriteLine(TextBox20.Text)
+            w.WriteLine("Liczba ograniczeń")
+            w.WriteLine(TextBox11.Text)
+            w.WriteLine("Współczynnik kary")
+            w.WriteLine(TextBox8.Text)
+            w.WriteLine("Ograniczenia")
+            If ComboBox1.SelectedIndex > -1 Then
+                w.WriteLine(TextBox9.Text + ComboBox1.Text + TextBox10.Text)
+            End If
+            If ComboBox2.SelectedIndex > -1 Then
+                w.WriteLine(TextBox21.Text + ComboBox2.Text + TextBox30.Text)
+            End If
+            If ComboBox3.SelectedIndex > -1 Then
+                w.WriteLine(TextBox22.Text + ComboBox3.Text + TextBox31.Text)
+            End If
+            If ComboBox4.SelectedIndex > -1 Then
+                w.WriteLine(TextBox23.Text + ComboBox4.Text + TextBox32.Text)
+            End If
+            If ComboBox5.SelectedIndex > -1 Then
+                w.WriteLine(TextBox24.Text + ComboBox5.Text + TextBox33.Text)
+            End If
+            If ComboBox6.SelectedIndex > -1 Then
+                w.WriteLine(TextBox25.Text + ComboBox6.Text + TextBox34.Text)
+            End If
+            If ComboBox7.SelectedIndex > -1 Then
+                w.WriteLine(TextBox26.Text + ComboBox7.Text + TextBox35.Text)
+            End If
+            If ComboBox8.SelectedIndex > -1 Then
+                w.WriteLine(TextBox27.Text + ComboBox8.Text + TextBox36.Text)
+            End If
+            If ComboBox9.SelectedIndex > -1 Then
+                w.WriteLine(TextBox28.Text + ComboBox9.Text + TextBox37.Text)
+            End If
+            If ComboBox10.SelectedIndex > -1 Then
+                w.WriteLine(TextBox29.Text + ComboBox10.Text + TextBox38.Text)
+            End If
+            w.Close()
+        End Using
+        Me.Refresh()
+        MsgBox("Jeżeli nie pojawi się komunkat w oknie parsera Aby kontynuować naciśnij dowolny klawisz należy zamknąć okno i sprawdzić poprawność wprowadzonych danych")
+        Me.Refresh()
+        Shell("\Algorytmy Genetyczne\Parser.exe", AppWinStyle.NormalFocus, True, -1)
+        Me.Refresh()
+        MsgBox("Obliczenia zakończone")
+        Me.Refresh()
+
+    End Sub
+
+    Private Sub Button2_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles Button2.Click
+        RichTextBox1.Text = My.Computer.FileSystem.ReadAllText("\Algorytmy Genetyczne\algen.txt")
+        Me.Refresh()
+    End Sub
+
+    Private Sub Button3_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles Button3.Click
+        RichTextBox2.Text = My.Computer.FileSystem.ReadAllText("\Algorytmy Genetyczne\algen1.txt")
+        Me.Refresh()
+    End Sub
+
+    Private Sub OProgramieToolStripMenuItem_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles OProgramieToolStripMenuItem.Click
+        Dim fileReader As String
+        fileReader = My.Computer.FileSystem.ReadAllText("\Algorytmy Genetyczne\O programie.txt")
+        MsgBox(fileReader)
+        Me.Refresh()
+    End Sub
+
+    Private Sub ParserToolStripMenuItem1_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles ParserToolStripMenuItem1.Click
+        Dim fileReader As String
+        fileReader = My.Computer.FileSystem.ReadAllText("C:\Algorytmy Genetyczne\Lista funkcji parsera.txt")
+        MsgBox(fileReader)
+        Me.Refresh()
+    End Sub
+
+    Private Sub GnuplotToolStripMenuItem_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles GnuplotToolStripMenuItem.Click
+        Dim fileReader As String
+        fileReader = My.Computer.FileSystem.ReadAllText("C:\Algorytmy Genetyczne\wgnuplot.txt")
+        MsgBox(fileReader)
+        Me.Refresh()
+    End Sub
+
+    Private Sub Button5_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles Button5.Click
+        TextBox1.Clear()
+        TextBox2.Clear()
+        TextBox3.Clear()
+        TextBox4.Clear()
+        TextBox5.Clear()
+        TextBox6.Clear()
+        Dim i As Integer
+        For i = 0 To CheckedListBox1.Items.Count - 1
+            CheckedListBox1.SetItemChecked(i, False)
+        Next
+        TextBox7.Clear()
+        TextBox12.Clear()
+        TextBox13.Clear()
+        TextBox14.Clear()
+        TextBox15.Clear()
+        TextBox16.Clear()
+        TextBox17.Clear()
+        TextBox18.Clear()
+        TextBox19.Clear()
+        TextBox20.Clear()
+        TextBox11.Clear()
+        TextBox8.Clear()
+        TextBox9.Clear()
+        ComboBox1.ResetText()
+        TextBox10.Clear()
+        TextBox21.Clear()
+        ComboBox2.ResetText()
+        TextBox30.Clear()
+        TextBox22.Clear()
+        ComboBox3.ResetText()
+        TextBox31.Clear()
+        TextBox23.Clear()
+        ComboBox4.ResetText()
+        TextBox32.Clear()
+        TextBox24.Clear()
+        ComboBox5.ResetText()
+        TextBox33.Clear()
+        TextBox25.Clear()
+        ComboBox6.ResetText()
+        TextBox34.Clear()
+        TextBox26.Clear()
+        ComboBox7.ResetText()
+        TextBox35.Clear()
+        TextBox27.Clear()
+        ComboBox8.ResetText()
+        TextBox36.Clear()
+        TextBox28.Clear()
+        ComboBox9.ResetText()
+        TextBox37.Clear()
+        TextBox29.Clear()
+        ComboBox10.ResetText()
+        TextBox38.Clear()
+        RichTextBox2.Clear()
+        RichTextBox1.Clear()
+
+    End Sub
+
+    Dim Mymessagebox
+    Private Sub Button4_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles Button4.Click
+        Mymessagebox = MsgBox(" Zamknąć program Algorytmy Genetyczne ?", MsgBoxStyle.YesNo, "")
+        If Mymessagebox = MsgBoxResult.Yes Then
+            MsgBox(" Program będzie zamknięty ", MsgBoxStyle.OkOnly, "Algorytmy Genetyczne")
+            Me.Close()
+        Else
+            MsgBox(" Operacja anulowana ", MsgBoxStyle.Exclamation, "Algorytmy Genetyczne")
+        End If
+    End Sub
+
+    Private Sub OtwórzToolStripMenuItem_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles OtwórzToolStripMenuItem.Click
+        Me.Refresh()
+        Shell("notepad.exe", AppWinStyle.NormalFocus)
+        Me.Refresh()
+    End Sub
+
+    Private Sub ParserToolStripMenuItem_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles ParserToolStripMenuItem.Click
+        Me.Refresh()
+        Shell("\Algorytmy Genetyczne\ParserMat.exe", AppWinStyle.NormalFocus, True)
+        Me.Refresh()
+    End Sub
+
+    Private Sub WykresyToolStripMenuItem_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles WykresyToolStripMenuItem.Click
+        Me.Refresh()
+        Shell("\Algorytmy Genetyczne\wgnuplot.exe", AppWinStyle.NormalFocus, True)
+        Me.Refresh()
+    End Sub
+
+End Class
